@@ -26,7 +26,7 @@ async def send_console_style_log(channel: TextChannel):
 -->> AWAITING USER COMMANDS                           |
 +-----------------------------------------------------+
 
-test
+test2
 ```
 """
     await channel.send(ascii_art)
