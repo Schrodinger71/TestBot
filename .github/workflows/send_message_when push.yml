@@ -2,7 +2,7 @@ name: Notify Discord on Multiple Commits
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   notify:
