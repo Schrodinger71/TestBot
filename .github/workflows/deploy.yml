@@ -12,6 +12,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug IPv6
+        run: ping6 ${{ secrets.SERVER_IP }} -c 3
+
       - name: Copy files to server and restart bot
         uses: appleboy/ssh-action@v1.0.3
         with:
