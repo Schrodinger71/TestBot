@@ -67,3 +67,4 @@ async def on_ready():
 
     # Запускаем таймер отключения через 6 часов
     # shutdown_timer.start()
+
