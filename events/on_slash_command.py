@@ -6,6 +6,7 @@ from disnake import AppCommandInteraction, Embed
 from bot_init import bot
 from modules.send_log_to_channel import log_to_channel
 
+
 @bot.event
 async def on_slash_command(interaction: AppCommandInteraction, result=None):
     """
