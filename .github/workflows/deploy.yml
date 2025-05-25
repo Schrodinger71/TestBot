@@ -1,11 +1,8 @@
-name: Deploy Discord AnagariBot
+name: Deploy Bot to Server
 
 on:
-  # schedule:
-    #Запускать каждые 10 минут
-    # - cron: '*/10 * * * *'
-
-  workflow_dispatch:
+  push:
+    branches: [master]
 
 jobs:
   deploy:
@@ -13,26 +10,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - name: Copy files to server and restart bot
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Load Environment Variables
-        run: |
-          echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" >> $GITHUB_ENV
-          echo "GIT_PAT_TOKEN=${{ secrets.GIT_PAT_TOKEN }}" >> $GITHUB_ENV
-
-      - name: Run bot
-        env:
-          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-        run: |
-          echo "Starting the bot..."
-          python main.py
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /root/TestBot
+            git pull origin master
+            source venv/bin/activate
+            pip3 install -r requirements.txt
+            pm2 restart TestBot || pm2 start main.py --name TestBot
