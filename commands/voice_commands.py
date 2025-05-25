@@ -4,13 +4,11 @@ from disnake.ext import commands
 import data
 from bot_init import bot
 from commands.utils import get_user_private_channel, has_any_role_by_keys
-from events.on_slash_command import log_slash_command
 from modules.modal_window_voice import ChannelOptionsView
 from modules.utils_data import save_data
 
 
 @bot.slash_command(name="lock", description="Закрыть канал для других")
-@log_slash_command
 async def lock_channel(interaction):
     if interaction.author.voice and interaction.author.voice.channel.id in data.private_channels.values():
         channel = interaction.author.voice.channel
@@ -20,7 +18,6 @@ async def lock_channel(interaction):
         await interaction.send("Вы не в своем приватном канале!", ephemeral=True)
 
 @bot.slash_command(name="unlock", description="Открыть канал для других")
-@log_slash_command
 async def unlock_channel(interaction):
     if interaction.author.voice and interaction.author.voice.channel.id in data.private_channels.values():
         channel = interaction.author.voice.channel
@@ -32,7 +29,6 @@ async def unlock_channel(interaction):
 
 # Слэш-команда для добавления триггер-канала
 @bot.slash_command(description="Добавить триггер-канал для создания приватных каналов")
-@log_slash_command
 @has_any_role_by_keys("head_project")
 async def add_trigger_channel(interaction, channel: VoiceChannel, tag: str):
     data.trigger_channels[channel.id] = tag
@@ -42,7 +38,6 @@ async def add_trigger_channel(interaction, channel: VoiceChannel, tag: str):
 
 # Слэш-команда для удаления триггер-канала
 @bot.slash_command(description="Удалить триггер-канал")
-@log_slash_command
 @has_any_role_by_keys("head_project")
 async def remove_trigger_channel(interaction, channel: VoiceChannel):
     if channel.id in data.trigger_channels:
@@ -55,7 +50,6 @@ async def remove_trigger_channel(interaction, channel: VoiceChannel):
 
 # Можно командой вывести список триггер-каналов
 @bot.slash_command(description="Показать список триггер-каналов")
-@log_slash_command
 async def list_trigger_channels(interaction):
     if not data.trigger_channels:
         await interaction.response.send_message("Триггер-каналы не настроены.")
@@ -67,7 +61,6 @@ async def list_trigger_channels(interaction):
 
 
 @bot.slash_command(name="name", description="Изменить имя голосового канала.")
-@log_slash_command
 async def change_name(interaction, name: str):
     await interaction.response.defer(ephemeral=True)  # говорим, что ответ будет позже
     channel = get_user_private_channel(interaction.author)
@@ -82,7 +75,6 @@ async def change_name(interaction, name: str):
 
 
 @bot.slash_command(name="limit", description="Изменить лимит участников.")
-@log_slash_command
 async def change_limit(
     interaction,
     limit: int = commands.Param(default=0, description="0 — без лимита")
@@ -100,7 +92,6 @@ async def change_limit(
 
 
 @bot.slash_command(name="bitrate", description="Изменить битрейт канала.")
-@log_slash_command
 async def change_bitrate(
     interaction,
     bitrate: int = commands.Param(default=64000, description="Введите битрейт (минимум 8000, максимум зависит от буста сервера)")
@@ -118,7 +109,7 @@ async def change_bitrate(
 
 
 # @bot.slash_command(name="claim", description="Стать владельцем текущего канала.")
-# @log_slash_command
+# 
 # async def claim_channel(interaction):
 #     vc = interaction.author.voice.channel if interaction.author.voice else None
 #     if vc and vc.id not in data.private_channels.values():
@@ -130,7 +121,6 @@ async def change_bitrate(
 
 
 @bot.slash_command(name="permit", description="Разрешить пользователю доступ к каналу.")
-@log_slash_command
 async def permit_user(interaction, member: Member):
     channel = get_user_private_channel(interaction.author)
     if channel:
@@ -141,7 +131,6 @@ async def permit_user(interaction, member: Member):
 
 
 @bot.slash_command(name="reject", description="Отклонить доступ пользователя (кик).")
-@log_slash_command
 async def reject_user(interaction, member: Member):
     channel = get_user_private_channel(interaction.author)
     if channel:

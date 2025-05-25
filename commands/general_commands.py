@@ -14,12 +14,10 @@ from disnake import AppCommandInteraction, Embed
 
 from bot_init import bot
 from config import FULL_PERMISSION_USERS
-from events.on_slash_command import log_slash_command
 from tasks.shutdown_timer import shutdown_procces
 
 
 @bot.slash_command(name="help", description="Показать список доступных команд.")
-@log_slash_command
 async def help_command(interaction: AppCommandInteraction):
     """
     Команда для отображения списка команд в стиле консольного интерфейса проекта 'Дельта'.
@@ -81,7 +79,6 @@ async def ping(ctx):
     await ctx.send(f"{emoji} Pong! Задержка: **{latency}ms**")
 
 @bot.slash_command(name="ping", help="Проверяет задержку бота.")
-@log_slash_command
 async def ping_command(interaction: AppCommandInteraction):
     """
     Команда для проверки задержки бота.
@@ -122,7 +119,6 @@ async def shutdown(interaction: AppCommandInteraction):
 
 
 @bot.slash_command(name="systeminfo", description="Выводит информацию о системе в SCP-консольном стиле.")
-@log_slash_command
 async def systeminfo(interaction: AppCommandInteraction):
     await interaction.response.send_message("```ansi\n[ANAGIRIUM NODE] :: SYSTEM DIAGNOSTICS INITIATED...\n```")
     message = await interaction.original_message()
