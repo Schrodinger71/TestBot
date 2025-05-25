@@ -2,6 +2,16 @@
 Модуль для запуска бота.
 """
 
+import subprocess
+import os
+
+# Выполняем git pull
+try:
+    print("[INFO] Updating code from git...")
+    subprocess.run(["git", "pull", "origin", "master"], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"[ERROR] Failed to update code from git: {e}")
+
 from bot_init import bot
 from commands import general_commands, voice_commands
 from config import DISCORD_TOKEN
