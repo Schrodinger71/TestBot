@@ -8,7 +8,7 @@ import os
 # Выполняем git pull
 try:
     print("[INFO] Updating code from git...")
-    subprocess.run(["git", "pull", "origin", "master"], check=True)
+    subprocess.run(["git", "pull"], check=True)
 except subprocess.CalledProcessError as e:
     print(f"[ERROR] Failed to update code from git: {e}")
 
