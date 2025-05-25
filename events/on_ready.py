@@ -60,7 +60,7 @@ async def on_ready():
         (monitor_commits, "Monitor Commits"),
     ]
     # Для дебага
-    tasks_to_start = []
+    # tasks_to_start = []
     for task, name in tasks_to_start:
         await start_task_if_not_running(task, name)
 
