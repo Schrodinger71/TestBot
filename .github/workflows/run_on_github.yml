@@ -1,9 +1,6 @@
 name: Start Discord Test
 
 on:
-#   schedule:
-#     #Запускать каждые 10 минут
-#     - cron: '*/10 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -29,9 +26,29 @@ jobs:
           echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" >> $GITHUB_ENV
           echo "GIT_PAT_TOKEN=${{ secrets.GIT_PAT_TOKEN }}" >> $GITHUB_ENV
 
-      - name: Run bot
+      - name: Install localtunnel
+        run: npm install -g localtunnel
+
+      - name: Run bot and expose with localtunnel
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
         run: |
           echo "Starting the bot..."
-          python main.py
+          nohup python main.py > bot.log 2>&1 &
+
+          # Ждём, чтобы сервер успел стартовать
+          sleep 5
+
+          # Запускаем localtunnel и выводим URL
+          lt --port 8000 --print-requests > tunnel.log &
+          sleep 5
+
+          echo "====================================="
+          echo "🔗 ССЫЛКА НА WEB-ИНТЕРФЕЙС:"
+          grep -Eo 'https://[^[:space:]]+' tunnel.log || echo "❌ Не удалось получить ссылку"
+          echo "====================================="
+
+      - name: Keep alive (чтобы не завершался)
+        run: |
+          echo "⏳ Поддерживаем workflow активным..."
+          tail -f /dev/null
