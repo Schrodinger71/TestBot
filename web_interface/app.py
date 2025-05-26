@@ -1,99 +1,91 @@
+import asyncio
+import platform
+import time
+from datetime import datetime
+
+import psutil
 import uvicorn
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket
-from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Request,
+                     Response, WebSocket, status)
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from bot_init import bot
+from config import PASSWORD_WEB, USER_WEB
 
 app = FastAPI()
+boot_time = datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
 
-# Подключаем статические файлы (если будут нужны)
-# app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="web_interface/templates")
 
-security = HTTPBasic()
+def is_authenticated(request: Request) -> bool:
+    # Проверяем есть ли кука authenticated=1
+    return request.cookies.get("authenticated") == "1"
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    # Разрешаем доступ к страницам логина без проверки
+    if request.url.path in ["/login", "/login_submit", "/favicon.ico"]:
+        response = await call_next(request)
+        return response
+
+    if not is_authenticated(request):
+        return RedirectResponse(url="/login")
+
+    response = await call_next(request)
+    return response
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request, "error": False})
+
+@app.post("/login_submit", response_class=HTMLResponse)
+async def login_submit(request: Request):
+    form = await request.form()
+    username = form.get("username")
+    password = form.get("password")
+    if username == USER_WEB and password == PASSWORD_WEB:
+        response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+        response.set_cookie(key="authenticated", value="1", httponly=True)
+        return response
+    else:
+        return templates.TemplateResponse("login.html", {"request": request, "error": True})
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/login")
+    response.delete_cookie("authenticated")
+    return response
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard():
-    return """
-    <!DOCTYPE html>
-    <html lang=\"ru\">
-    <head>
-        <meta charset=\"UTF-8\">
-        <title>Панель управления Discord-ботом</title>
-        <style>
-            body { font-family: sans-serif; background: #1e1e2f; color: #ffffff; margin: 0; padding: 20px; }
-            h1 { color: #00bfff; }
-            button { padding: 10px 20px; background-color: #00bfff; border: none; border-radius: 5px; color: white; cursor: pointer; margin: 5px; }
-            button:hover { background-color: #009acd; }
-            .card { background: #2e2e3e; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
-            .status { font-weight: bold; }
-        </style>
-        <script>
-            let socket;
-
-            function connectWebSocket() {
-                socket = new WebSocket("ws://" + location.host + "/ws");
-                socket.onmessage = function(event) {
-                    alert("\u041e\u0442\u0432\u0435\u0442 \u043e\u0442 \u0431\u043e\u0442\u0430: " + event.data);
-                };
-            }
-
-            function restartBot() {
-                if (!socket || socket.readyState !== WebSocket.OPEN) {
-                    connectWebSocket();
-                    socket.onopen = () => socket.send("restart");
-                } else {
-                    socket.send("restart");
-                }
-            }
-
-            async function getStatus() {
-                const res = await fetch("/api/status");
-                const data = await res.json();
-                document.getElementById("status").innerText = `\u0421\u0442\u0430\u0442\u0443\u0441: ${data.status}\n\u0413\u0438\u043b\u044c\u0434\u0438\u0438: ${data.guilds}\n\u0417\u0430\u0434\u0435\u0440\u0436\u043a\u0430: ${data.latency}`;
-            }
-
-            window.onload = getStatus;
-        </script>
-    </head>
-    <body>
-        <h1>Панель управления Discord-ботом</h1>
-
-        <div class=\"card\">
-            <h2>Статус</h2>
-            <div id=\"status\" class=\"status\">Загрузка...</div>
-            <button onclick=\"getStatus()\">Обновить статус</button>
-        </div>
-
-        <div class=\"card\">
-            <h2>Управление</h2>
-            <button onclick=\"restartBot()\">Перезапустить бота</button>
-        </div>
-
-        <div class=\"card\">
-            <h2>Мониторинг</h2>
-            <p>Скоро здесь будет лог событий, статистика активности и другие фишки...</p>
-        </div>
-    </body>
-    </html>
-    """
+async def dashboard(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    loop = asyncio.get_event_loop()  # это loop FastAPI
     while True:
-        data = await websocket.receive_text()
-        if data == "restart":
-            await bot.close()
-            await bot.start(bot.token)
-            await websocket.send_text("Бот перезапущен")
+        try:
+            data = await websocket.receive_text()
+            if data == "restart":
+                loop_bot = bot.loop  # цикл, в котором бот был запущен
 
-@app.get("/admin")
-async def admin_panel(auth: HTTPBasicCredentials = Depends(security)):
-    if auth.username != "admin" or auth.password != "secret":
-        raise HTTPException(status_code=401)
-    return {"message": "Admin access granted"}
+                # Завершаем бота
+                await websocket.send_text("Остановка бота...")
+                future_close = asyncio.run_coroutine_threadsafe(bot.close(), loop_bot)
+                future_close.result()  # дождаться завершения
+
+                # Запускаем заново
+                await websocket.send_text("Запуск бота...")
+                future_start = asyncio.run_coroutine_threadsafe(bot.start(bot.token), loop_bot)
+                future_start.result()
+
+                await websocket.send_text("✅ Бот перезапущен")
+        except Exception as e:
+            await websocket.send_text(f"❌ Ошибка: {str(e)}")
+            break
 
 router = APIRouter()
 
@@ -111,7 +103,97 @@ async def restart_bot():
     await bot.start(bot.token)
     return {"status": "restarting"}
 
-app.include_router(router)
+
+
+# Пример логов (в реальности — брать из файла/базы)
+LOG_STORAGE = [
+    {"time": str(datetime.utcnow()), "type": "INFO", "message": "Бот запущен."},
+    {"time": str(datetime.utcnow()), "type": "WARNING", "message": "Высокая задержка."},
+]
+
+@router.get("/api/logs")
+async def get_logs():
+    return {"logs": LOG_STORAGE[-100:]}  # последние 100 логов
+
+@router.get("/api/users")
+async def get_user_stats():
+    total_members = sum(guild.member_count for guild in bot.guilds)
+    return {"guilds": len(bot.guilds), "total_members": total_members}
+
+@router.get("/api/commands")
+async def get_command_usage():
+    # Заменить на реальную статистику команд
+    return {
+        "ping": 124,
+        "restart": 10,
+        "help": 58,
+        "ban": 5,
+    }
+
+
+
+
+@router.get("/api/system")
+async def system_info():
+    return {
+        "system": platform.system(),
+        "node_name": platform.node(),
+        "release": platform.release(),
+        "version": platform.version(),
+        "architecture": platform.machine(),
+        "cpu": {
+            "physical_cores": psutil.cpu_count(logical=False),
+            "total_cores": psutil.cpu_count(logical=True),
+            "usage_per_core": psutil.cpu_percent(percpu=True),
+            "total_usage": psutil.cpu_percent()
+        },
+        "memory": {
+            "total": round(psutil.virtual_memory().total / 1024**3, 2),  # GB
+            "available": round(psutil.virtual_memory().available / 1024**3, 2),
+            "used": round(psutil.virtual_memory().used / 1024**3, 2),
+            "percent": psutil.virtual_memory().percent
+        },
+        "swap": {
+            "total": round(psutil.swap_memory().total / 1024**3, 2),
+            "used": round(psutil.swap_memory().used / 1024**3, 2),
+            "free": round(psutil.swap_memory().free / 1024**3, 2),
+            "percent": psutil.swap_memory().percent
+        },
+        "disk": [
+            {
+                "device": part.device,
+                "mountpoint": part.mountpoint,
+                "fstype": part.fstype,
+                "total": round(psutil.disk_usage(part.mountpoint).total / 1024**3, 2),
+                "used": round(psutil.disk_usage(part.mountpoint).used / 1024**3, 2),
+                "free": round(psutil.disk_usage(part.mountpoint).free / 1024**3, 2),
+                "percent": psutil.disk_usage(part.mountpoint).percent
+            }
+            for part in psutil.disk_partitions() if part.fstype
+        ],
+        "boot_time": boot_time,
+        "uptime_seconds": int(time.time() - psutil.boot_time()),
+        "load_average": list(psutil.getloadavg()) if hasattr(psutil, "getloadavg") else []
+    }
+
+RESTART_HISTORY = []
+
+@router.post("/api/restart")
+async def restart_bot():
+    RESTART_HISTORY.append(str(datetime.utcnow()))
+    await bot.close()
+    await bot.start(bot.token)
+    return {"status": "restarting"}
+
+@router.get("/api/restarts")
+async def get_restart_history():
+    return {"history": RESTART_HISTORY[-10:]}
+
+@router.get("/api/guilds")
+async def list_guilds():
+    return [{"name": g.name, "id": g.id, "members": g.member_count} for g in bot.guilds]
 
 def run_web_interface():
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+
+app.include_router(router)

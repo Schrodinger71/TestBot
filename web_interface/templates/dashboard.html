@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <title>Панель управления Discord-ботом</title>
+    <style>
+        body { font-family: sans-serif; background: #1e1e2f; color: #ffffff; margin: 0; padding: 20px; }
+        h1 { color: #00bfff; }
+        button { padding: 10px 20px; background-color: #00bfff; border: none; border-radius: 5px; color: white; cursor: pointer; margin: 5px; }
+        button:hover { background-color: #009acd; }
+        .card { background: #2e2e3e; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+        .status { font-weight: bold; white-space: pre-line; }
+        #logout { position: absolute; top: 20px; right: 20px; background: #ff4c4c; }
+    </style>
+    <script>
+        let socket;
+
+        function connectWebSocket() {
+            socket = new WebSocket("ws://" + location.host + "/ws");
+            socket.onmessage = function(event) {
+                alert("Ответ от бота: " + event.data);
+            };
+        }
+
+        function restartBot() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                connectWebSocket();
+                socket.onopen = () => socket.send("restart");
+            } else {
+                socket.send("restart");
+            }
+        }
+
+        async function getStatus() {
+            const res = await fetch("/api/status");
+            const data = await res.json();
+            document.getElementById("status").innerText = `Статус: ${data.status}\nГильдии: ${data.guilds}\nЗадержка: ${data.latency}`;
+        }
+
+        async function loadLogs() {
+            const res = await fetch("/api/logs");
+            const data = await res.json();
+            const logList = document.getElementById("logs");
+            logList.innerHTML = "";
+            data.logs.forEach(log => {
+                const line = document.createElement("div");
+                line.textContent = `[${log.time}] [${log.type}] ${log.message}`;
+                logList.appendChild(line);
+            });
+        }
+
+        async function loadUserStats() {
+            const res = await fetch("/api/users");
+            const data = await res.json();
+            document.getElementById("users").innerText =
+                `Всего гильдий: ${data.guilds}\nВсего участников: ${data.total_members}`;
+        }
+
+        async function loadCommandUsage() {
+            const res = await fetch("/api/commands");
+            const data = await res.json();
+            const commands = document.getElementById("commands");
+            commands.innerHTML = "";
+            for (const [cmd, count] of Object.entries(data)) {
+                commands.innerHTML += `${cmd}: ${count} использований<br>`;
+            }
+        }
+
+        async function loadGuilds() {
+            const res = await fetch("/api/guilds");
+            const data = await res.json();
+            const list = document.getElementById("guilds");
+            list.innerHTML = "";
+            data.forEach(g => {
+                list.innerHTML += `${g.name} (ID: ${g.id}) — ${g.members} участников<br>`;
+            });
+        }
+
+        function filterLogs(type) {
+            loadLogs(type);
+        }
+
+        async function loadLogs(filter = "ALL") {
+            const res = await fetch("/api/logs");
+            const data = await res.json();
+            const logList = document.getElementById("logs");
+            logList.innerHTML = "";
+            data.logs.forEach(log => {
+                if (filter === "ALL" || log.type === filter) {
+                    const line = document.createElement("div");
+                    line.textContent = `[${log.time}] [${log.type}] ${log.message}`;
+                    logList.appendChild(line);
+                }
+            });
+        }
+
+        async function loadSystem() {
+            const res = await fetch("/api/system");
+            const data = await res.json();
+            const sys = document.getElementById("system");
+
+            sys.innerHTML = `
+        <b>OS:</b> ${data.system} ${data.release} (${data.architecture})<br>
+        <b>Host:</b> ${data.node_name}<br>
+        <b>Uptime:</b> ${formatUptime(data.uptime_seconds)}<br>
+        <b>CPU:</b> ${data.cpu.physical_cores} physical / ${data.cpu.total_cores} total<br>
+        <b>Usage:</b> ${data.cpu.total_usage}%<br>
+        <b>Per Core:</b> ${data.cpu.usage_per_core.join(" | ")}<br>
+        <b>RAM:</b> ${data.memory.used}GB / ${data.memory.total}GB (${data.memory.percent}%)<br>
+        <b>Swap:</b> ${data.swap.used}GB / ${data.swap.total}GB (${data.swap.percent}%)<br>
+        <b>Disks:</b><br>
+        ${data.disk.map(d => `&nbsp;&nbsp;- ${d.device} (${d.mountpoint}): ${d.used}GB / ${d.total}GB (${d.percent}%)`).join("<br>")}
+        <b>Boot Time:</b> ${data.boot_time}<br>
+        <b>Load Avg:</b> ${data.load_average.join(" / ")}
+        `;
+        }
+
+        function formatUptime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `${h}h ${m}m ${s}s`;
+        }
+
+        setInterval(loadSystem, 5000);
+        setInterval(getStatus, 10000);
+
+        window.onload = () => {
+            getStatus();
+            loadLogs();
+            loadUserStats();
+            loadCommandUsage();
+            loadGuilds();
+            loadSystem();
+        };
+
+        window.onload = getStatus;
+    </script>
+</head>
+<body>
+    <button id="logout" onclick="location.href='/logout'">Выйти</button>
+    <h1>Панель управления Discord-ботом</h1>
+
+    <div class="card">
+        <h2>Статус</h2>
+        <div id="status" class="status">Загрузка...</div>
+        <button onclick="getStatus()">Обновить статус</button>
+    </div>
+
+    <div class="card">
+        <h2>Управление</h2>
+        <button onclick="restartBot()">🔁 Перезапустить бота</button>
+    </div>
+
+    <div class="card">
+        <h2>Мониторинг</h2>
+        <p>Скоро здесь будет лог событий, статистика активности и другие фишки...</p>
+
+        <div class="card">
+            <h2>Логи</h2>
+            <div id="logs" style="max-height: 200px; overflow-y: auto;"></div>
+
+            <select onchange="filterLogs(this.value)">
+                <option value="ALL">Все</option>
+                <option value="INFO">INFO</option>
+                <option value="WARNING">WARNING</option>
+            </select>
+        </div>
+
+        <div class="card">
+            <h2>Система</h2>
+            <div id="system">Загрузка...</div>
+        </div>
+
+        <div class="card">
+            <h2>Список гильдий</h2>
+            <div id="guilds">Загрузка...</div>
+        </div>
+
+        <div class="card">
+            <h2>👥 Пользователи</h2>
+            <div id="users">Загрузка...</div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -28,6 +28,8 @@ def get_env_variable(name: str, default: str = "NULL") -> str:
 # Получение переменных из окружения
 DISCORD_TOKEN = get_env_variable("DISCORD_TOKEN")
 GIT_PAT_TOKEN = get_env_variable("GIT_PAT_TOKEN")
+USER_WEB = get_env_variable("USER_WEB")
+PASSWORD_WEB = get_env_variable("PASSWORD_WEB")
 
 LOG_TECH_CHANNEL = 1376098205997076561  # ID канала с логами
 BACKUP_CHANNEL_ID = 1376098306043674745 # ID канала для сохранения настроек в случае отключения
