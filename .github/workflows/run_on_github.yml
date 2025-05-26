@@ -26,21 +26,21 @@ jobs:
           echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" >> $GITHUB_ENV
           echo "GIT_PAT_TOKEN=${{ secrets.GIT_PAT_TOKEN }}" >> $GITHUB_ENV
 
-      - name: Install localtunnel
-        run: npm install -g localtunnel
+      - name: Install cloudflared
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
 
-      - name: Run bot and expose with localtunnel
+      - name: Run bot and expose with cloudflared tunnel
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
         run: |
           echo "Starting the bot..."
           nohup python main.py > bot.log 2>&1 &
 
-          # Ждём, чтобы сервер успел стартовать
           sleep 5
 
-          # Запускаем localtunnel и выводим URL
-          lt --port 8000 --print-requests > tunnel.log &
+          nohup cloudflared tunnel --url http://localhost:8000 --no-autoupdate > tunnel.log 2>&1 &
           sleep 5
 
           echo "====================================="
